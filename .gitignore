@@ -1,0 +1,8 @@
+# 编译产物
+*.exe
+*.test
+*.out
+
+# 测试与覆盖率
+coverage.*
+*.prof
