@@ -23,9 +23,9 @@ func WithAddr(addr string) Option {
 	}
 }
 
-// WithStore 注入存储后端，默认使用内存实现
+// WithStore 注入存储后端作为 0 号逻辑库，默认使用内存实现
 func WithStore(st store.Store) Option {
 	return func(s *Server) {
-		s.st = st
+		s.dbs[0] = st
 	}
 }

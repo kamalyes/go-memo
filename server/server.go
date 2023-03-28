@@ -15,6 +15,8 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/kamalyes/go-memo/command"
 	"github.com/kamalyes/go-memo/store"
@@ -22,24 +24,27 @@ import (
 
 // Server RESP 键值服务，每个连接一个 goroutine 独立读写
 type Server struct {
-	addr string            // 监听地址
-	st   store.Store       // 键值存储后端
-	reg  *command.Registry // 命令注册表
+	addr string               // 监听地址
+	dbs  [DBCount]store.Store // 16 个逻辑库，各自独立键值存储
+	reg  *command.Registry    // 命令注册表
 
-	mu     sync.Mutex            // 保护以下字段的互斥锁
-	ln     net.Listener          // 已建立的监听器
-	conns  map[net.Conn]struct{} // 活动连接登记表
-	closed bool                  // 是否已关闭
-	wg     sync.WaitGroup        // 等待在途连接退出的计数器
+	mu     sync.Mutex             // 保护连接登记表的互斥锁
+	ln     net.Listener           // 已建立的监听器
+	conns  map[net.Conn]*connInfo // 活动连接登记表
+	nextID atomic.Int64           // 客户端自增 ID 分配器
+	closed bool                   // 是否已关闭
+	wg     sync.WaitGroup         // 等待在途连接退出的计数器
 }
 
 // New 创建服务，可传入装配选项
 func New(opts ...Option) *Server {
 	s := &Server{
 		addr:  DefaultAddr,
-		st:    store.New(),
 		reg:   command.NewRegistry(),
-		conns: make(map[net.Conn]struct{}),
+		conns: make(map[net.Conn]*connInfo),
+	}
+	for i := range s.dbs {
+		s.dbs[i] = store.New()
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -83,14 +88,21 @@ func (s *Server) ListenAndServe() error {
 			_ = nc.Close()
 			continue
 		}
-		s.conns[nc] = struct{}{}
+		ci := &connInfo{
+			id:      s.nextID.Add(1),
+			nc:      nc,
+			addr:    nc.RemoteAddr().String(),
+			created: time.Now(),
+			lastCmd: time.Now(),
+		}
+		s.conns[nc] = ci
 		s.wg.Add(1)
 		s.mu.Unlock()
 
 		s.reg.Stats().IncrTotalConn()
 		s.reg.Stats().IncrConn()
 
-		go s.serveConn(nc)
+		go s.serveConn(ci)
 	}
 }
 
