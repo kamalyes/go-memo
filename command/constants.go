@@ -17,7 +17,6 @@ const Version = "0.1.0"
 // 固定错误消息
 const (
 	msgNotInteger  = "ERR value is not an integer or out of range"
-	msgIndexRange  = "ERR DB index is out of range"
 	msgEmptyCmd    = "ERR empty command"
 	msgSyntaxError = "ERR syntax error"
 	msgPong        = "PONG"

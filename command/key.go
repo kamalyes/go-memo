@@ -95,6 +95,42 @@ func handleDBSize(st store.Store, args []string) resp.Value {
 	return resp.Integer(keys)
 }
 
+// handleExists 返回存活键数量
+func handleExists(st store.Store, args []string) resp.Value {
+	if len(args) < 2 {
+		return resp.ErrorString(errWrongArgs("exists"))
+	}
+	n := 0
+	for _, k := range args[1:] {
+		if st.Exists(k) {
+			n++
+		}
+	}
+	return resp.Integer(int64(n))
+}
+
+// handlePersist 移除键的过期时间
+func handlePersist(st store.Store, args []string) resp.Value {
+	if len(args) != 2 {
+		return resp.ErrorString(errWrongArgs("persist"))
+	}
+	if st.Persist(args[1]) {
+		return resp.Integer(1)
+	}
+	return resp.Integer(0)
+}
+
+// handleRename 将源键改名到目标键
+func handleRename(st store.Store, args []string) resp.Value {
+	if len(args) != 3 {
+		return resp.ErrorString(errWrongArgs("rename"))
+	}
+	if !st.Rename(args[1], args[2]) {
+		return resp.ErrorString("ERR no such key")
+	}
+	return resp.SimpleString(msgOK)
+}
+
 func boolInt(b bool) resp.Value {
 	if b {
 		return resp.Integer(1)
