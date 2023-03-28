@@ -29,6 +29,16 @@ func (m *Memory) Keys() []string {
 	return out
 }
 
+// Flush 清空存储内全部键，逐分片加锁重置映射
+func (m *Memory) Flush() {
+	for i := range m.shards {
+		s := m.shards[i]
+		s.mu.Lock()
+		s.m = make(map[string]*entry)
+		s.mu.Unlock()
+	}
+}
+
 // Exists 判断键是否存活，过期键访问时即时剔除
 func (m *Memory) Exists(key string) bool {
 	s := m.shardOf(key)

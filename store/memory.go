@@ -77,6 +77,32 @@ func (m *Memory) Set(key string, value string) {
 	s.mu.Unlock()
 }
 
+// SetNX 仅在键不存在（或已过期）时写入，返回是否写入成功
+func (m *Memory) SetNX(key string, value string) bool {
+	s := m.shardOf(key)
+	now := unixMilli()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e, ok := s.m[key]; ok && !e.expired(now) {
+		return false
+	}
+	s.m[key] = &entry{value: value}
+	return true
+}
+
+// SetXX 仅在键已存在且未过期时写入，返回是否写入成功
+func (m *Memory) SetXX(key string, value string) bool {
+	s := m.shardOf(key)
+	now := unixMilli()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e, ok := s.m[key]; !ok || e.expired(now) {
+		return false
+	}
+	s.m[key] = &entry{value: value}
+	return true
+}
+
 // IncrBy 将键值按整数递增
 func (m *Memory) IncrBy(key string, delta int64) (int64, error) {
 	s := m.shardOf(key)
@@ -119,6 +145,49 @@ func (m *Memory) Del(keys ...string) int {
 	return n
 }
 
+// Rename 将源键值移动到目标键，源与目标相同时仅返回其存活状态
+func (m *Memory) Rename(src, dst string) bool {
+	if src == dst {
+		return m.Exists(src)
+	}
+	si := fnv32(src) % shardCount
+	di := fnv32(dst) % shardCount
+	now := unixMilli()
+
+	if si == di {
+		s := m.shards[si]
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return renamePair(s, s, src, dst, now)
+	}
+
+	// 跨分片按索引升序加锁，规避死锁
+	lo, hi := si, di
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	slo, shi := m.shards[lo], m.shards[hi]
+	slo.mu.Lock()
+	shi.mu.Lock()
+	defer shi.mu.Unlock()
+	defer slo.mu.Unlock()
+	return renamePair(m.shards[si], m.shards[di], src, dst, now)
+}
+
+// renamePair 在分片已加锁的前提下执行改名，返回源键是否存活
+func renamePair(srcS, dstS *shard, src, dst string, now int64) bool {
+	e, ok := srcS.m[src]
+	if !ok || e.expired(now) {
+		if ok {
+			delete(srcS.m, src)
+		}
+		return false
+	}
+	delete(srcS.m, src)
+	dstS.m[dst] = &entry{value: e.value}
+	return true
+}
+
 // Expire 为存活键设置过期时间
 func (m *Memory) Expire(key string, expireAt int64) bool {
 	s := m.shardOf(key)
@@ -134,6 +203,23 @@ func (m *Memory) Expire(key string, expireAt int64) bool {
 		return false
 	}
 	e.expireAt = expireAt
+	return true
+}
+
+// Persist 移除键的过期时间，键不存在或未设置过期返回 false
+func (m *Memory) Persist(key string) bool {
+	s := m.shardOf(key)
+	now := unixMilli()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.m[key]
+	if !ok || e.expired(now) {
+		return false
+	}
+	if e.expireAt == 0 {
+		return false
+	}
+	e.expireAt = 0
 	return true
 }
 

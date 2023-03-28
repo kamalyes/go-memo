@@ -19,14 +19,26 @@ type Store interface {
 	// Set 写入键值，不带过期时间
 	Set(key string, value string)
 
+	// SetNX 仅在键不存在时写入，返回是否写入成功
+	SetNX(key string, value string) bool
+
+	// SetXX 仅在键已存在时写入，返回是否写入成功
+	SetXX(key string, value string) bool
+
 	// IncrBy 将键值按整数递增，键不存在时视为 0，非整数值返回错误
 	IncrBy(key string, delta int64) (int64, error)
 
 	// Del 删除一个或多个键，返回实际删除的存活键数量
 	Del(keys ...string) int
 
+	// Rename 将源键值移动到目标键，源键不存在返回 false
+	Rename(src, dst string) bool
+
 	// Expire 为已存在的键设置过期时间，键不存在或已过期返回 false
 	Expire(key string, expireAt int64) bool
+
+	// Persist 移除键的过期时间，键不存在或未设置过期返回 false
+	Persist(key string) bool
 
 	// TTL 返回剩余存活毫秒数，语义见 TTLNotExist / TTLNoExpire
 	TTL(key string) int64
@@ -39,6 +51,9 @@ type Store interface {
 
 	// Keyspace 返回存活键数量与带过期时间的键数量
 	Keyspace() (keys int64, expires int64)
+
+	// Flush 清空存储内全部键
+	Flush()
 
 	// UsedMemory 返回数据集估算内存占用字节
 	UsedMemory() int64
