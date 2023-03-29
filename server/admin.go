@@ -13,6 +13,8 @@ package server
 
 import (
 	"fmt"
+	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -66,6 +68,8 @@ func (s *Server) cmdClient(ci *connInfo, args []string) resp.Value {
 	switch strings.ToUpper(args[1]) {
 	case "LIST":
 		return resp.BulkString(s.clientList())
+	case "INFO":
+		return resp.BulkString(s.clientLine(ci))
 	case "SETNAME":
 		if len(args) != 3 {
 			return resp.ErrorString(errWrongArgs("client|setname"))
@@ -92,15 +96,21 @@ func (s *Server) clientList() string {
 	s.mu.Unlock()
 	sort.Slice(conns, func(i, j int) bool { return conns[i].id < conns[j].id })
 
-	now := time.Now()
 	var b strings.Builder
 	for _, ci := range conns {
-		age := int64(now.Sub(ci.created).Seconds())
-		idle := int64(now.Sub(ci.lastCmd).Seconds())
-		fmt.Fprintf(&b, "id=%d addr=%s name=%s db=%d age=%d idle=%d flags=N sub=0 psub=0 multi=-1 qbuf=0 qbuf-free=0 argv-mem=0 obl=0 oll=0 omem=0 tot-mem=0 events=r cmd=client user=default redir=-1 resp=2\r\n",
-			ci.id, ci.addr, ci.name, ci.db, age, idle)
+		b.WriteString(s.clientLine(ci))
+		b.WriteString("\r\n")
 	}
 	return b.String()
+}
+
+// clientLine 序列化单条连接信息，供 CLIENT LIST 与 CLIENT INFO 复用
+func (s *Server) clientLine(ci *connInfo) string {
+	now := time.Now()
+	age := int64(now.Sub(ci.created).Seconds())
+	idle := int64(now.Sub(ci.lastCmd).Seconds())
+	return fmt.Sprintf("id=%d addr=%s name=%s db=%d age=%d idle=%d flags=N sub=0 psub=0 multi=-1 qbuf=0 qbuf-free=0 argv-mem=0 obl=0 oll=0 omem=0 tot-mem=0 events=r cmd=client user=default redir=-1 resp=2",
+		ci.id, ci.addr, ci.name, ci.db, age, idle)
 }
 
 // configItem 单个可查询配置项
@@ -181,7 +191,7 @@ func (s *Server) cmdCluster(args []string) resp.Value {
 	return resp.ErrorString("ERR This instance has cluster support disabled")
 }
 
-// cmdInfo 输出服务器信息文本，不含 Redis 伪装字段，仅保留 memo 自身字段
+// cmdInfo 输出服务器信息文本，字段名对齐 Redis 以兼容桌面客户端解析
 func (s *Server) cmdInfo(_ []string) resp.Value {
 	return resp.BulkString(s.infoText())
 }
@@ -193,15 +203,19 @@ func (s *Server) infoText() string {
 
 	var b strings.Builder
 	b.WriteString("# Server\r\n")
-	fmt.Fprintf(&b, "memo_version:%s\r\n", command.Version)
+	fmt.Fprintf(&b, "redis_version:%s\r\n", command.Version)
 	fmt.Fprintf(&b, "run_id:%s\r\n", stats.RunID())
 	fmt.Fprintf(&b, "tcp_port:%d\r\n", stats.Port())
 	fmt.Fprintf(&b, "uptime_in_seconds:%d\r\n", secs)
 	fmt.Fprintf(&b, "uptime_in_days:%d\r\n", secs/86400)
+	fmt.Fprintf(&b, "os:%s\r\n", runtime.GOOS)
+	fmt.Fprintf(&b, "arch_bits:%d\r\n", strconv.IntSize)
+	fmt.Fprintf(&b, "process_id:%d\r\n", os.Getpid())
 	fmt.Fprintf(&b, "databases:%d\r\n", DBCount)
 
 	b.WriteString("\r\n# Clients\r\n")
 	fmt.Fprintf(&b, "connected_clients:%d\r\n", stats.ConnCount())
+	fmt.Fprintf(&b, "blocked_clients:%d\r\n", 0)
 
 	b.WriteString("\r\n# Memory\r\n")
 	var used int64

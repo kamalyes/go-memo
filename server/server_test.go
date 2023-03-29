@@ -195,11 +195,11 @@ func TestClientListAndInfo(t *testing.T) {
 	if info.Type != resp.TypeBulk {
 		t.Fatalf("INFO = %+v, want bulk", info)
 	}
-	if !strings.Contains(info.Str, "memo_version:") {
-		t.Fatalf("INFO missing memo_version: %q", info.Str)
+	if !strings.Contains(info.Str, "redis_version:") {
+		t.Fatalf("INFO missing redis_version: %q", info.Str)
 	}
-	if strings.Contains(info.Str, "redis_version:") {
-		t.Fatalf("INFO should not contain redis_version: %q", info.Str)
+	if !strings.Contains(info.Str, "uptime_in_seconds:") {
+		t.Fatalf("INFO missing uptime_in_seconds: %q", info.Str)
 	}
 	if !strings.Contains(info.Str, "databases:16") {
 		t.Fatalf("INFO missing databases:16: %q", info.Str)
