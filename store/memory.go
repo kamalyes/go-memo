@@ -184,7 +184,7 @@ func renamePair(srcS, dstS *shard, src, dst string, now int64) bool {
 		return false
 	}
 	delete(srcS.m, src)
-	dstS.m[dst] = &entry{value: e.value}
+	dstS.m[dst] = &entry{value: e.value, expireAt: e.expireAt}
 	return true
 }
 
