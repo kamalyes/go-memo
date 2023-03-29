@@ -309,3 +309,47 @@ func TestRename(t *testing.T) {
 		t.Fatalf("RENAME missing = %+v, want error", v)
 	}
 }
+
+func TestRenamePreservesTTL(t *testing.T) {
+	e := newEnv()
+	e.cmd("SET", "src", "val", "EX", "100")
+	if v := e.cmd("RENAME", "src", "dst"); v.Str != "OK" {
+		t.Fatalf("RENAME = %+v", v)
+	}
+	if v := e.cmd("TTL", "dst"); v.Int != 100 {
+		t.Fatalf("TTL dst = %+v, want 100", v)
+	}
+}
+
+func TestDumpRestore(t *testing.T) {
+	e := newEnv()
+	e.cmd("SET", "src", "hello")
+	v := e.cmd("DUMP", "src")
+	if v.Type != resp.TypeBulk {
+		t.Fatalf("DUMP = %+v, want bulk", v)
+	}
+	if r := e.cmd("RESTORE", "dst", "0", v.Str, "REPLACE"); r.Str != "OK" {
+		t.Fatalf("RESTORE = %+v", r)
+	}
+	if r := e.cmd("GET", "dst"); r.Str != "hello" {
+		t.Fatalf("GET dst = %+v, want hello", r)
+	}
+	if r := e.cmd("DUMP", "missing"); r.Type != resp.TypeBulk || !r.Null {
+		t.Fatalf("DUMP missing = %+v, want null", r)
+	}
+}
+
+func TestRestoreTtlAndBusyKey(t *testing.T) {
+	e := newEnv()
+	e.cmd("SET", "k", "v")
+	dump := e.cmd("DUMP", "k")
+	if r := e.cmd("RESTORE", "r", "100000", dump.Str); r.Str != "OK" {
+		t.Fatalf("RESTORE = %+v", r)
+	}
+	if r := e.cmd("TTL", "r"); r.Int != 100 {
+		t.Fatalf("TTL r = %+v, want 100", r)
+	}
+	if r := e.cmd("RESTORE", "r", "0", dump.Str); r.Type != resp.TypeError {
+		t.Fatalf("RESTORE busy = %+v, want error", r)
+	}
+}

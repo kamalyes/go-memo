@@ -51,6 +51,8 @@ func NewRegistry() *Registry {
 	r.Register("PTTL", handlePTTL)
 	r.Register("PERSIST", handlePersist)
 	r.Register("RENAME", handleRename)
+	r.Register("DUMP", handleDump)
+	r.Register("RESTORE", handleRestore)
 	r.Register("TYPE", handleType)
 	r.Register("DBSIZE", handleDBSize)
 	r.Register("SCAN", handleScan)
