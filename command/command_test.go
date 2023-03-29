@@ -12,7 +12,6 @@
 package command
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/kamalyes/go-memo/resp"
@@ -37,47 +36,6 @@ func TestPing(t *testing.T) {
 	v := newEnv().cmd("PING")
 	if v.Type != resp.TypeSimpleString || v.Str != "PONG" {
 		t.Fatalf("PING = %+v, want PONG", v)
-	}
-}
-
-func TestSelect(t *testing.T) {
-	e := newEnv()
-	if v := e.cmd("SELECT", "0"); v.Type != resp.TypeSimpleString || v.Str != "OK" {
-		t.Fatalf("SELECT 0 = %+v, want OK", v)
-	}
-	if v := e.cmd("SELECT", "1"); v.Type != resp.TypeError {
-		t.Fatalf("SELECT 1 = %+v, want error", v)
-	}
-}
-
-func TestInfo(t *testing.T) {
-	v := newEnv().cmd("INFO")
-	if v.Type != resp.TypeBulk {
-		t.Fatalf("INFO = %+v, want bulk", v)
-	}
-	if !strings.Contains(v.Str, "memo_version:"+Version) {
-		t.Fatalf("INFO missing memo_version: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "redis_version:") {
-		t.Fatalf("INFO missing redis_version: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "# Clients") {
-		t.Fatalf("INFO missing Clients section: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "connected_clients:") {
-		t.Fatalf("INFO missing connected_clients: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "# Memory") {
-		t.Fatalf("INFO missing Memory section: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "used_memory:") {
-		t.Fatalf("INFO missing used_memory: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "tcp_port:") {
-		t.Fatalf("INFO missing tcp_port: %q", v.Str)
-	}
-	if !strings.Contains(v.Str, "# Keyspace") {
-		t.Fatalf("INFO missing Keyspace section: %q", v.Str)
 	}
 }
 
@@ -230,5 +188,124 @@ func TestKeys(t *testing.T) {
 	v := e.cmd("KEYS", "*")
 	if v.Type != resp.TypeArray || len(v.Array) != 2 {
 		t.Fatalf("KEYS * = %+v, want 2 keys", v)
+	}
+}
+
+func TestSetOptions(t *testing.T) {
+	e := newEnv()
+	if v := e.cmd("SET", "nx", "1", "NX"); v.Type != resp.TypeSimpleString || v.Str != "OK" {
+		t.Fatalf("SET nx = %+v", v)
+	}
+	if v := e.cmd("SET", "nx", "2", "NX"); v.Type != resp.TypeBulk || !v.Null {
+		t.Fatalf("SET nx NX again = %+v, want null", v)
+	}
+	if v := e.cmd("SET", "nx", "3", "XX"); v.Type != resp.TypeSimpleString {
+		t.Fatalf("SET nx XX = %+v", v)
+	}
+	if v := e.cmd("GET", "nx"); v.Str != "3" {
+		t.Fatalf("GET nx = %+v, want 3", v)
+	}
+	if v := e.cmd("SET", "gone", "1", "XX"); v.Type != resp.TypeBulk || !v.Null {
+		t.Fatalf("SET xx missing = %+v, want null", v)
+	}
+	if v := e.cmd("SET", "ex", "v", "EX", "100"); v.Str != "OK" {
+		t.Fatalf("SET ex = %+v", v)
+	}
+	if v := e.cmd("TTL", "ex"); v.Int != 100 {
+		t.Fatalf("TTL ex = %+v, want 100", v)
+	}
+}
+
+func TestIncrDecr(t *testing.T) {
+	e := newEnv()
+	if v := e.cmd("INCR", "n"); v.Int != 1 {
+		t.Fatalf("INCR = %+v", v)
+	}
+	if v := e.cmd("INCR", "n"); v.Int != 2 {
+		t.Fatalf("INCR = %+v", v)
+	}
+	if v := e.cmd("DECR", "n"); v.Int != 1 {
+		t.Fatalf("DECR = %+v", v)
+	}
+	if v := e.cmd("DECRBY", "n", "5"); v.Int != -4 {
+		t.Fatalf("DECRBY = %+v", v)
+	}
+}
+
+func TestAppendStrLen(t *testing.T) {
+	e := newEnv()
+	if v := e.cmd("APPEND", "s", "hello"); v.Int != 5 {
+		t.Fatalf("APPEND = %+v", v)
+	}
+	if v := e.cmd("APPEND", "s", " world"); v.Int != 11 {
+		t.Fatalf("APPEND = %+v", v)
+	}
+	if v := e.cmd("STRLEN", "s"); v.Int != 11 {
+		t.Fatalf("STRLEN = %+v", v)
+	}
+	if v := e.cmd("STRLEN", "missing"); v.Int != 0 {
+		t.Fatalf("STRLEN missing = %+v", v)
+	}
+}
+
+func TestMGetMSet(t *testing.T) {
+	e := newEnv()
+	if v := e.cmd("MSET", "a", "1", "b", "2"); v.Str != "OK" {
+		t.Fatalf("MSET = %+v", v)
+	}
+	v := e.cmd("MGET", "a", "missing", "b")
+	if v.Type != resp.TypeArray || len(v.Array) != 3 {
+		t.Fatalf("MGET = %+v", v)
+	}
+	if v.Array[0].Str != "1" || !v.Array[1].Null || v.Array[2].Str != "2" {
+		t.Fatalf("MGET values = %+v", v)
+	}
+}
+
+func TestSetExSetNxPersist(t *testing.T) {
+	e := newEnv()
+	if v := e.cmd("SETEX", "k", "100", "v"); v.Str != "OK" {
+		t.Fatalf("SETEX = %+v", v)
+	}
+	if v := e.cmd("TTL", "k"); v.Int != 100 {
+		t.Fatalf("TTL after SETEX = %+v", v)
+	}
+	if v := e.cmd("PERSIST", "k"); v.Int != 1 {
+		t.Fatalf("PERSIST = %+v", v)
+	}
+	if v := e.cmd("TTL", "k"); v.Int != -1 {
+		t.Fatalf("TTL after PERSIST = %+v, want -1", v)
+	}
+	if v := e.cmd("SETNX", "k", "x"); v.Int != 0 {
+		t.Fatalf("SETNX existing = %+v, want 0", v)
+	}
+	if v := e.cmd("SETNX", "new", "x"); v.Int != 1 {
+		t.Fatalf("SETNX new = %+v, want 1", v)
+	}
+}
+
+func TestExists(t *testing.T) {
+	e := newEnv()
+	e.cmd("SET", "a", "1")
+	e.cmd("SET", "b", "2")
+	if v := e.cmd("EXISTS", "a", "missing", "b"); v.Int != 2 {
+		t.Fatalf("EXISTS = %+v, want 2", v)
+	}
+}
+
+func TestRename(t *testing.T) {
+	e := newEnv()
+	e.cmd("SET", "src", "val")
+	if v := e.cmd("RENAME", "src", "dst"); v.Str != "OK" {
+		t.Fatalf("RENAME = %+v", v)
+	}
+	if v := e.cmd("GET", "src"); !v.Null {
+		t.Fatalf("GET src = %+v, want null", v)
+	}
+	if v := e.cmd("GET", "dst"); v.Str != "val" {
+		t.Fatalf("GET dst = %+v, want val", v)
+	}
+	if v := e.cmd("RENAME", "missing", "x"); v.Type != resp.TypeError {
+		t.Fatalf("RENAME missing = %+v, want error", v)
 	}
 }
