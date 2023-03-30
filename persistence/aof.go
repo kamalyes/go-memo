@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2023-03-21 09:12:35
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2023-03-21 09:12:35
+ * @LastEditTime: 2023-03-30 10:12:35
  * @FilePath: \go-memo\persistence\aof.go
  * @Description: 仅追加日志（AOF），顺序追加命令并周期刷盘
  *
@@ -15,6 +15,7 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -35,8 +36,11 @@ type AOF struct {
 	done     chan struct{} // 后台刷盘退出信号
 }
 
-// OpenAOF 打开或创建 AOF 文件并启动后台刷盘
+// OpenAOF 打开或创建 AOF 文件并启动后台刷盘，缺失的父目录自动创建
 func OpenAOF(path string) (*AOF, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, err
+	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err

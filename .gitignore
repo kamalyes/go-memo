@@ -6,3 +6,8 @@
 # 测试与覆盖率
 coverage.*
 *.prof
+
+# 持久化数据
+data/
+*.aof
+*.rdb

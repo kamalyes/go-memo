@@ -29,3 +29,10 @@ func WithStore(st store.Store) Option {
 		s.dbs[0] = st
 	}
 }
+
+// WithAOF 开启 AOF 持久化，写命令追加到指定文件并在启动时回放
+func WithAOF(path string) Option {
+	return func(s *Server) {
+		s.aofPath = path
+	}
+}

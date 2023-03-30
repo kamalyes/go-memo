@@ -140,6 +140,18 @@ go get github.com/kamalyes/go-memo
 
 ## 🚀 快速开始
 
+直接运行内置入口，flag 对齐 `redis-server`，默认开启 AOF 持久化：
+
+```bash
+# 启动（写命令顺序追加到 ./data/appendonly.aof，重启自动回放）
+go run ./bootstrap --port 7399 --dir ./data
+
+# 纯内存模式（关闭持久化，重启即丢失）
+go run ./bootstrap --appendonly=false
+```
+
+也可进程内嵌入：
+
 ```go
 package main
 
@@ -150,7 +162,7 @@ import (
 )
 
 func main() {
-	srv := server.New(server.WithAddr(":7399"))
+	srv := server.New(server.WithAddr(":7399"), server.WithAOF("appendonly.aof"))
 	log.Printf("memo listening on %s", srv.Addr())
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
@@ -159,8 +171,8 @@ func main() {
 ```
 
 ```bash
-# 标准 redis-cli 直连
-$ redis-cli -p 7399
+# 标准 redis-cli 直连（与 bootstrap 默认 bind 127.0.0.1:7399 对齐）
+$ redis-cli -h 127.0.0.1 -p 7399
 127.0.0.1:7399> SET foo bar
 OK
 127.0.0.1:7399> GET foo
@@ -179,10 +191,12 @@ OK
 
 | 类别 | 命令 |
 | --- | --- |
-| 服务 | `PING` / `SELECT` / `INFO` |
-| 键操作 | `DEL` / `EXPIRE` / `PEXPIRE` / `TTL` / `PTTL` |
-| 键枚举 | `DBSIZE` / `SCAN` / `KEYS` / `TYPE` |
-| 字符串 | `SET` / `GET` / `INCRBY` |
+| 服务 | `PING` / `SELECT` / `INFO` / `CONFIG` / `CLIENT` / `COMMAND` / `HELLO` / `CLUSTER` |
+| 键操作 | `DEL` / `EXISTS` / `EXPIRE` / `PEXPIRE` / `TTL` / `PTTL` / `PERSIST` / `RENAME` / `TYPE` |
+| 键枚举 | `DBSIZE` / `SCAN` / `KEYS` |
+| 字符串 | `SET` / `GET` / `SETNX` / `SETEX` / `MSET` / `MGET` / `APPEND` / `STRLEN` / `INCR` / `DECR` / `INCRBY` / `DECRBY` |
+| 序列化 | `DUMP` / `RESTORE` |
+| 持久化与清空 | `SAVE` / `BGSAVE` / `FLUSHDB` / `FLUSHALL` |
 
 ## 📦 模块分层
 
@@ -209,7 +223,7 @@ go-memo/
 └── bootstrap/       # 可执行入口
 ```
 
-## � 性能基准
+## 📊 性能基准
 
 go-memo 以「高性能、零依赖」为首要目标，核心设计面向高并发读写：
 
@@ -220,6 +234,6 @@ go-memo 以「高性能、零依赖」为首要目标，核心设计面向高并
 
 > 完整 benchmark（吞吐 / p99 延迟，与原生 Redis 对照）计划放入独立仓库 `go-memo-benchmark` 后续补全
 
-## �📄 许可证
+## 📄 许可证
 
 [MIT](./LICENSE) © 2023 kamalyes

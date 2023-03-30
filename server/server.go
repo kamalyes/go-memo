@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/kamalyes/go-memo/command"
+	"github.com/kamalyes/go-memo/persistence"
 	"github.com/kamalyes/go-memo/store"
 )
 
@@ -27,6 +28,9 @@ type Server struct {
 	addr string               // 监听地址
 	dbs  [DBCount]store.Store // 16 个逻辑库，各自独立键值存储
 	reg  *command.Registry    // 命令注册表
+
+	aof     *persistence.AOF // 可选 AOF 持久化句柄，nil 表示不启用
+	aofPath string           // AOF 日志文件路径，为空不启用
 
 	mu     sync.Mutex             // 保护连接登记表的互斥锁
 	ln     net.Listener           // 已建立的监听器
@@ -54,6 +58,10 @@ func New(opts ...Option) *Server {
 
 // ListenAndServe 监听并处理连接，直至 Close 被调用
 func (s *Server) ListenAndServe() error {
+	if err := s.initPersistence(); err != nil {
+		return err
+	}
+
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
@@ -124,6 +132,9 @@ func (s *Server) Close() error {
 		_ = ln.Close()
 	}
 	s.wg.Wait()
+	if s.aof != nil {
+		_ = s.aof.Close()
+	}
 	return nil
 }
 

@@ -48,6 +48,11 @@ func (s *Server) serveConn(ci *connInfo) {
 		}
 		ci.lastCmd = time.Now()
 		reply := s.dispatch(ci, args)
+		if reply.Type != resp.TypeError {
+			if err := s.appendAOF(args); err != nil {
+				return
+			}
+		}
 		if err := w.WriteValue(reply); err != nil {
 			return
 		}

@@ -15,6 +15,7 @@ import (
 	"bufio"
 	"io"
 	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -23,8 +24,12 @@ import (
 )
 
 func startServer(t *testing.T) (string, *Server) {
+	return startServerWith(t, WithAddr("127.0.0.1:0"))
+}
+
+func startServerWith(t *testing.T, opts ...Option) (string, *Server) {
 	t.Helper()
-	s := New(WithAddr("127.0.0.1:0"))
+	s := New(opts...)
 	errCh := make(chan error, 1)
 	go func() { errCh <- s.ListenAndServe() }()
 	for i := 0; i < 200; i++ {
@@ -241,5 +246,27 @@ func TestFlushDBAndFlushAll(t *testing.T) {
 	}
 	if v := c.cmd("DBSIZE"); v.Int != 0 {
 		t.Fatalf("DBSIZE after FLUSHALL = %+v, want 0", v)
+	}
+}
+
+func TestAOFPersistRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "appendonly.aof")
+
+	addr, s := startServerWith(t, WithAddr("127.0.0.1:0"), WithAOF(path))
+	c := dialClient(t, addr)
+	if v := c.cmd("SET", "foo", "bar"); v.Str != "OK" {
+		t.Fatalf("SET = %+v", v)
+	}
+	c.close()
+	if err := s.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	addr, s = startServerWith(t, WithAddr("127.0.0.1:0"), WithAOF(path))
+	defer s.Close()
+	c = dialClient(t, addr)
+	defer c.close()
+	if v := c.cmd("GET", "foo"); v.Type != resp.TypeBulk || v.Str != "bar" {
+		t.Fatalf("GET after restart = %+v, want bar", v)
 	}
 }
