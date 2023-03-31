@@ -36,3 +36,10 @@ func WithAOF(path string) Option {
 		s.aofPath = path
 	}
 }
+
+// WithRDB 开启 RDB 全量快照，启动时回放，SAVE/BGSAVE 与关闭时落盘
+func WithRDB(path string) Option {
+	return func(s *Server) {
+		s.rdbPath = path
+	}
+}

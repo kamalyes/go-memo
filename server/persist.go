@@ -47,16 +47,17 @@ func isWriteCommand(args []string) bool {
 	return writeCommands[strings.ToUpper(args[0])]
 }
 
-// initPersistence 回放已有 AOF 日志并打开追加句柄，未启用时直接返回
+// initPersistence 先回放 RDB 快照再回放 AOF 日志，最后打开追加句柄
 func (s *Server) initPersistence() error {
+	if s.rdbPath != "" {
+		if err := s.replayFile(s.rdbPath); err != nil {
+			return err
+		}
+	}
 	if s.aofPath == "" {
 		return nil
 	}
-	ci := &connInfo{}
-	if err := persistence.Replay(s.aofPath, func(args []string) error {
-		s.dispatch(ci, args)
-		return nil
-	}); err != nil {
+	if err := s.replayFile(s.aofPath); err != nil {
 		return err
 	}
 	aof, err := persistence.OpenAOF(s.aofPath)
@@ -65,6 +66,15 @@ func (s *Server) initPersistence() error {
 	}
 	s.aof = aof
 	return nil
+}
+
+// replayFile 回放命令流文件，SELECT 与写命令经 dispatch 路由到对应逻辑库
+func (s *Server) replayFile(path string) error {
+	ci := &connInfo{}
+	return persistence.Replay(path, func(args []string) error {
+		s.dispatch(ci, args)
+		return nil
+	})
 }
 
 // appendAOF 将状态变更命令追加到持久化日志

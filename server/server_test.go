@@ -270,3 +270,36 @@ func TestAOFPersistRoundTrip(t *testing.T) {
 		t.Fatalf("GET after restart = %+v, want bar", v)
 	}
 }
+
+func TestRDBSnapshotRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dump.rdb")
+
+	addr, s := startServerWith(t, WithAddr("127.0.0.1:0"), WithRDB(path))
+	c := dialClient(t, addr)
+	if v := c.cmd("SET", "foo", "bar"); v.Str != "OK" {
+		t.Fatalf("SET = %+v", v)
+	}
+	c.cmd("SELECT", "1")
+	if v := c.cmd("SET", "baz", "qux"); v.Str != "OK" {
+		t.Fatalf("SET db1 = %+v", v)
+	}
+	if v := c.cmd("SAVE"); v.Type != resp.TypeSimpleString || v.Str != "OK" {
+		t.Fatalf("SAVE = %+v, want OK", v)
+	}
+	c.close()
+	if err := s.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	addr, s = startServerWith(t, WithAddr("127.0.0.1:0"), WithRDB(path))
+	defer s.Close()
+	c = dialClient(t, addr)
+	defer c.close()
+	if v := c.cmd("GET", "foo"); v.Type != resp.TypeBulk || v.Str != "bar" {
+		t.Fatalf("GET db0 after restart = %+v, want bar", v)
+	}
+	c.cmd("SELECT", "1")
+	if v := c.cmd("GET", "baz"); v.Type != resp.TypeBulk || v.Str != "qux" {
+		t.Fatalf("GET db1 after restart = %+v, want qux", v)
+	}
+}

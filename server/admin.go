@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/kamalyes/go-memo/command"
+	"github.com/kamalyes/go-memo/persistence"
 	"github.com/kamalyes/go-memo/resp"
 )
 
@@ -189,6 +190,22 @@ func (s *Server) cmdCluster(args []string) resp.Value {
 		}
 	}
 	return resp.ErrorString("ERR This instance has cluster support disabled")
+}
+
+// cmdSave 同步将全部逻辑库快照落盘
+func (s *Server) cmdSave(_ []string) resp.Value {
+	if s.rdbPath == "" {
+		return resp.ErrorString("ERR RDB snapshots are disabled")
+	}
+	if _, err := persistence.SaveDBs(s.dbs[:], s.rdbPath); err != nil {
+		return resp.ErrorString("ERR " + err.Error())
+	}
+	return resp.SimpleString(msgOK)
+}
+
+// cmdBGSave 纯内存下与同步落盘等价，复用 cmdSave
+func (s *Server) cmdBGSave(args []string) resp.Value {
+	return s.cmdSave(args)
 }
 
 // cmdInfo 输出服务器信息文本，字段名对齐 Redis 以兼容桌面客户端解析

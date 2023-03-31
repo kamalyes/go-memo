@@ -24,35 +24,59 @@ import (
 // Save 将存储全量快照写入 path，返回快照键数量
 func Save(m *store.Memory, path string) (int, error) {
 	records := m.Snapshot()
+	if err := writeStream(path, SnapshotCommands(records)); err != nil {
+		return 0, err
+	}
+	return len(records), nil
+}
+
+// SaveDBs 将多个逻辑库全量快照写入 path，库间以 SELECT 分隔，返回总键数量
+func SaveDBs(dbs []store.Store, path string) (int, error) {
+	var cmds [][]string
+	total := 0
+	for i, db := range dbs {
+		records := db.Snapshot()
+		if len(records) == 0 {
+			continue
+		}
+		total += len(records)
+		cmds = append(cmds, []string{"SELECT", strconv.Itoa(i)})
+		cmds = append(cmds, SnapshotCommands(records)...)
+	}
+	if err := writeStream(path, cmds); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// writeStream 将命令流写入临时文件后原子重命名到 path
+func writeStream(path string, cmds [][]string) error {
 	tmp := path + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer func() { _ = os.Remove(tmp) }()
 
 	w := bufio.NewWriter(f)
-	for _, cmd := range SnapshotCommands(records) {
+	for _, cmd := range cmds {
 		if err := writeCommand(w, cmd); err != nil {
 			_ = f.Close()
-			return 0, err
+			return err
 		}
 	}
 	if err := w.Flush(); err != nil {
 		_ = f.Close()
-		return 0, err
+		return err
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		return 0, err
+		return err
 	}
 	if err := f.Close(); err != nil {
-		return 0, err
+		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		return 0, err
-	}
-	return len(records), nil
+	return os.Rename(tmp, path)
 }
 
 // Load 回放快照文件重建存储

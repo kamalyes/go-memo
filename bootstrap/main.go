@@ -29,12 +29,16 @@ func main() {
 	dir := flag.String("dir", ".", "数据目录，AOF 日志存放路径")
 	appendonly := flag.Bool("appendonly", true, "是否开启 AOF 持久化")
 	appendfilename := flag.String("appendfilename", "appendonly.aof", "AOF 日志文件名")
+	dbfilename := flag.String("dbfilename", "dump.rdb", "RDB 快照文件名，空则禁用快照")
 	flag.Parse()
 
 	addr := net.JoinHostPort(*bind, *port)
 	opts := []server.Option{server.WithAddr(addr)}
 	if *appendonly {
 		opts = append(opts, server.WithAOF(filepath.Join(*dir, *appendfilename)))
+	}
+	if *dbfilename != "" {
+		opts = append(opts, server.WithRDB(filepath.Join(*dir, *dbfilename)))
 	}
 
 	srv := server.New(opts...)
@@ -43,7 +47,7 @@ func main() {
 			log.Fatalf("memo serve: %v", err)
 		}
 	}()
-	log.Printf("memo listening on %s (appendonly=%v)", addr, *appendonly)
+	log.Printf("memo listening on %s (appendonly=%v rdb=%v)", addr, *appendonly, *dbfilename != "")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

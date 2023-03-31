@@ -90,8 +90,10 @@ func (s *Server) dispatch(ci *connInfo, args []string) resp.Value {
 		return s.cmdCommand(args)
 	case "HELLO":
 		return s.cmdHello(ci, args)
-	case "SAVE", "BGSAVE":
-		return resp.SimpleString(msgOK)
+	case "SAVE":
+		return s.cmdSave(args)
+	case "BGSAVE":
+		return s.cmdBGSave(args)
 	case "CLUSTER":
 		return s.cmdCluster(args)
 	}

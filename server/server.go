@@ -31,6 +31,7 @@ type Server struct {
 
 	aof     *persistence.AOF // 可选 AOF 持久化句柄，nil 表示不启用
 	aofPath string           // AOF 日志文件路径，为空不启用
+	rdbPath string           // RDB 快照文件路径，为空不启用
 
 	mu     sync.Mutex             // 保护连接登记表的互斥锁
 	ln     net.Listener           // 已建立的监听器
@@ -132,6 +133,9 @@ func (s *Server) Close() error {
 		_ = ln.Close()
 	}
 	s.wg.Wait()
+	if s.rdbPath != "" {
+		_, _ = persistence.SaveDBs(s.dbs[:], s.rdbPath)
+	}
 	if s.aof != nil {
 		_ = s.aof.Close()
 	}

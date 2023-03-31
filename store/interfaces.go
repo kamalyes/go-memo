@@ -52,6 +52,9 @@ type Store interface {
 	// Keyspace 返回存活键数量与带过期时间的键数量
 	Keyspace() (keys int64, expires int64)
 
+	// Snapshot 返回全量存活键值快照，供持久化与复制采集
+	Snapshot() []Record
+
 	// Flush 清空存储内全部键
 	Flush()
 
