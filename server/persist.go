@@ -37,6 +37,41 @@ var writeCommands = map[string]bool{
 	"SELECT":   true,
 	"FLUSHDB":  true,
 	"FLUSHALL": true,
+
+	// 列表
+	"LPUSH":   true,
+	"RPUSH":   true,
+	"LPUSHX":  true,
+	"RPUSHX":  true,
+	"LPOP":    true,
+	"RPOP":    true,
+	"LREM":    true,
+	"LSET":    true,
+	"LINSERT": true,
+	"LTRIM":   true,
+
+	// 哈希
+	"HSET":    true,
+	"HMSET":   true,
+	"HSETNX":  true,
+	"HDEL":    true,
+	"HINCRBY": true,
+
+	// 集合
+	"SADD":        true,
+	"SREM":        true,
+	"SPOP":        true,
+	"SMOVE":       true,
+	"SINTERSTORE": true,
+	"SUNIONSTORE": true,
+	"SDIFFSTORE":  true,
+
+	// 有序集合
+	"ZADD":             true,
+	"ZINCRBY":          true,
+	"ZREM":             true,
+	"ZREMRANGEBYRANK":  true,
+	"ZREMRANGEBYSCORE": true,
 }
 
 // isWriteCommand 判断命令是否为需要久化的状态变更命令

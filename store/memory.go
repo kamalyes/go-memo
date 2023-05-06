@@ -19,12 +19,29 @@ import (
 )
 
 // ErrNotInteger 键值无法解析为整数
-var ErrNotInteger = errors.New("value is not an integer or out of range")
+var ErrNotInteger = errors.New("ERR value is not an integer or out of range")
 
-// entry 单个键的存储单元
+// ErrWrongType 键值类型与操作不匹配
+var ErrWrongType = errors.New("WRONGTYPE Operation against a key holding the wrong kind of value")
+
+// ErrIndexRange 索引超出列表范围
+var ErrIndexRange = errors.New("ERR index out of range")
+
+// ErrNotFloat 键值无法解析为浮点数
+var ErrNotFloat = errors.New("ERR value is not a valid float")
+
+// ErrNoKey 键不存在
+var ErrNoKey = errors.New("ERR no such key")
+
+// entry 单个键的存储单元，按类型分字段存储，仅一个数据字段被使用
 type entry struct {
-	value    string
-	expireAt int64 // unix 毫秒，0 表示永不过期
+	typ      ValueType           // 键值数据类型
+	value    string              // 字符串类型数据
+	list     []string            // 列表类型数据
+	hash     map[string]string   // 哈希类型数据
+	set      map[string]struct{} // 集合类型数据
+	zset     *zsetData           // 有序集合类型数据
+	expireAt int64               // unix 毫秒，0 表示永不过期
 }
 
 // expired 判断键是否在指定时刻已过期
@@ -66,6 +83,9 @@ func (m *Memory) Get(key string) (string, bool) {
 		s.removeIfExpired(key, e, now)
 		return "", false
 	}
+	if e.typ != TypeString {
+		return "", false
+	}
 	return e.value, true
 }
 
@@ -73,7 +93,7 @@ func (m *Memory) Get(key string) (string, bool) {
 func (m *Memory) Set(key string, value string) {
 	s := m.shardOf(key)
 	s.mu.Lock()
-	s.m[key] = &entry{value: value}
+	s.m[key] = &entry{typ: TypeString, value: value}
 	s.mu.Unlock()
 }
 
@@ -86,7 +106,7 @@ func (m *Memory) SetNX(key string, value string) bool {
 	if e, ok := s.m[key]; ok && !e.expired(now) {
 		return false
 	}
-	s.m[key] = &entry{value: value}
+	s.m[key] = &entry{typ: TypeString, value: value}
 	return true
 }
 
@@ -99,7 +119,7 @@ func (m *Memory) SetXX(key string, value string) bool {
 	if e, ok := s.m[key]; !ok || e.expired(now) {
 		return false
 	}
-	s.m[key] = &entry{value: value}
+	s.m[key] = &entry{typ: TypeString, value: value}
 	return true
 }
 
@@ -115,6 +135,9 @@ func (m *Memory) IncrBy(key string, delta int64) (int64, error) {
 		if e.expired(now) {
 			delete(s.m, key)
 		} else {
+			if e.typ != TypeString {
+				return 0, ErrWrongType
+			}
 			n, err := strconv.ParseInt(e.value, 10, 64)
 			if err != nil {
 				return 0, ErrNotInteger
@@ -123,7 +146,7 @@ func (m *Memory) IncrBy(key string, delta int64) (int64, error) {
 		}
 	}
 	next := cur + delta
-	s.m[key] = &entry{value: strconv.FormatInt(next, 10)}
+	s.m[key] = &entry{typ: TypeString, value: strconv.FormatInt(next, 10)}
 	return next, nil
 }
 
@@ -184,7 +207,7 @@ func renamePair(srcS, dstS *shard, src, dst string, now int64) bool {
 		return false
 	}
 	delete(srcS.m, src)
-	dstS.m[dst] = &entry{value: e.value, expireAt: e.expireAt}
+	dstS.m[dst] = e
 	return true
 }
 
@@ -251,6 +274,36 @@ func (s *shard) removeIfExpired(key string, e *entry, now int64) {
 	if cur, ok := s.m[key]; ok && cur == e && cur.expired(now) {
 		delete(s.m, key)
 	}
+}
+
+// Type 返回键的当前类型，键不存在或已过期返回 TypeNone
+func (m *Memory) Type(key string) ValueType {
+	s := m.shardOf(key)
+	now := unixMilli()
+	s.mu.RLock()
+	e := s.m[key]
+	s.mu.RUnlock()
+	if e == nil {
+		return TypeNone
+	}
+	if e.expired(now) {
+		s.removeIfExpired(key, e, now)
+		return TypeNone
+	}
+	return e.typ
+}
+
+// lockEntry 对键所在分片加写锁，返回存活条目与分片，键不存在返回 nil
+func (m *Memory) lockEntry(key string) (*entry, *shard) {
+	s := m.shardOf(key)
+	now := unixMilli()
+	s.mu.Lock()
+	e := s.m[key]
+	if e != nil && e.expired(now) {
+		delete(s.m, key)
+		e = nil
+	}
+	return e, s
 }
 
 func (m *Memory) shardOf(key string) *shard {

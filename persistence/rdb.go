@@ -14,6 +14,7 @@ package persistence
 import (
 	"bufio"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -84,12 +85,12 @@ func Load(path string, dispatch func([]string) error) error {
 	return Replay(path, dispatch)
 }
 
-// SnapshotCommands 将快照记录转换为可回放的 SET/PEXPIRE 命令序列
+// SnapshotCommands 将快照记录转换为可回放的命令序列，按类型发出对应写命令
 func SnapshotCommands(records []store.Record) [][]string {
 	now := time.Now().UnixMilli()
 	cmds := make([][]string, 0, len(records)*2)
 	for _, r := range records {
-		cmds = append(cmds, []string{"SET", r.Key, r.Value})
+		cmds = append(cmds, encodeRecord(r)...)
 		if r.ExpireAt != 0 {
 			if rem := r.ExpireAt - now; rem > 0 {
 				cmds = append(cmds, []string{"PEXPIRE", r.Key, strconv.FormatInt(rem, 10)})
@@ -97,6 +98,47 @@ func SnapshotCommands(records []store.Record) [][]string {
 		}
 	}
 	return cmds
+}
+
+// encodeRecord 将单条快照记录编码为对应类型的写命令
+func encodeRecord(r store.Record) [][]string {
+	switch r.Typ {
+	case store.TypeString:
+		return [][]string{{"SET", r.Key, r.Str}}
+	case store.TypeList:
+		return [][]string{append([]string{"RPUSH", r.Key}, r.List...)}
+	case store.TypeHash:
+		args := []string{"HSET", r.Key}
+		for _, f := range sortedKeys(r.Hash) {
+			args = append(args, f, r.Hash[f])
+		}
+		return [][]string{args}
+	case store.TypeSet:
+		return [][]string{append([]string{"SADD", r.Key}, r.Set...)}
+	case store.TypeZSet:
+		args := []string{"ZADD", r.Key}
+		for _, p := range r.ZSet {
+			args = append(args, formatScore(p.Score), p.Member)
+		}
+		return [][]string{args}
+	default:
+		return nil
+	}
+}
+
+// sortedKeys 返回映射键名升序切片，保证命令流确定性
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// formatScore 将分数格式化为最短可往返的十进制表示
+func formatScore(score float64) string {
+	return strconv.FormatFloat(score, 'g', -1, 64)
 }
 
 func writeCommand(w *bufio.Writer, args []string) error {

@@ -90,9 +90,43 @@ func (m *Memory) UsedMemory() int64 {
 			if e.expired(now) {
 				continue
 			}
-			n += int64(len(k)) + int64(len(e.value)) + entryOverhead
+			n += int64(len(k)) + entryDataSize(e) + entryOverhead
 		}
 		s.mu.RUnlock()
 	}
 	return n
+}
+
+// entryDataSize 估算条目数据部分的内存占用，集合逐元素累加
+func entryDataSize(e *entry) int64 {
+	switch e.typ {
+	case TypeString:
+		return int64(len(e.value))
+	case TypeList:
+		var n int64
+		for _, v := range e.list {
+			n += int64(len(v))
+		}
+		return n
+	case TypeHash:
+		var n int64
+		for f, v := range e.hash {
+			n += int64(len(f) + len(v))
+		}
+		return n
+	case TypeSet:
+		var n int64
+		for v := range e.set {
+			n += int64(len(v))
+		}
+		return n
+	case TypeZSet:
+		var n int64
+		for member := range e.zset.scores {
+			n += int64(len(member)) + 8
+		}
+		return n
+	default:
+		return 0
+	}
 }

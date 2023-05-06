@@ -19,3 +19,34 @@ const (
 	TTLNotExist = int64(-2) // 键不存在
 	TTLNoExpire = int64(-1) // 键存在但永不过期
 )
+
+// ValueType 键值数据类型，TypeNone 表示键不存在
+type ValueType uint8
+
+// 键值数据类型枚举
+const (
+	TypeNone   ValueType = iota // 键不存在
+	TypeString                  // 字符串
+	TypeList                    // 列表
+	TypeHash                    // 哈希
+	TypeSet                     // 集合
+	TypeZSet                    // 有序集合
+)
+
+// String 返回类型对应的 Redis 类型名，TypeNone 返回 none
+func (t ValueType) String() string {
+	switch t {
+	case TypeString:
+		return "string"
+	case TypeList:
+		return "list"
+	case TypeHash:
+		return "hash"
+	case TypeSet:
+		return "set"
+	case TypeZSet:
+		return "zset"
+	default:
+		return "none"
+	}
+}
