@@ -17,6 +17,7 @@ const Version = "0.1.0"
 // 固定错误消息
 const (
 	msgNotInteger  = "ERR value is not an integer or out of range"
+	msgNotFloat    = "ERR value is not a valid float"
 	msgEmptyCmd    = "ERR empty command"
 	msgSyntaxError = "ERR syntax error"
 	msgPong        = "PONG"

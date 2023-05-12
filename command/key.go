@@ -75,15 +75,12 @@ func handlePTTL(st store.Store, args []string) resp.Value {
 	return resp.Integer(st.TTL(args[1]))
 }
 
-// handleType 返回键值类型，仅支持字符串与不存在
+// handleType 返回键值类型名，兼容 string/list/hash/set/zset 与不存在
 func handleType(st store.Store, args []string) resp.Value {
 	if len(args) != 2 {
 		return resp.ErrorString(errWrongArgs("type"))
 	}
-	if st.Exists(args[1]) {
-		return resp.SimpleString("string")
-	}
-	return resp.SimpleString("none")
+	return resp.SimpleString(st.Type(args[1]).String())
 }
 
 // handleDBSize 返回当前库存活键数量
