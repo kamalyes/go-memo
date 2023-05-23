@@ -69,24 +69,24 @@ func New() *Memory {
 	return mem
 }
 
-// Get 读取键值，键不存在或已过期返回 false
-func (m *Memory) Get(key string) (string, bool) {
+// Get 读取字符串键值，键不存在返回 false，类型不符返回 ErrWrongType
+func (m *Memory) Get(key string) (string, bool, error) {
 	s := m.shardOf(key)
 	now := unixMilli()
 	s.mu.RLock()
 	e := s.m[key]
 	s.mu.RUnlock()
 	if e == nil {
-		return "", false
+		return "", false, nil
 	}
 	if e.expired(now) {
 		s.removeIfExpired(key, e, now)
-		return "", false
+		return "", false, nil
 	}
 	if e.typ != TypeString {
-		return "", false
+		return "", false, ErrWrongType
 	}
-	return e.value, true
+	return e.value, true, nil
 }
 
 // Set 写入键值，覆盖过期时间

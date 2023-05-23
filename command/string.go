@@ -12,6 +12,7 @@
 package command
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +25,10 @@ func handleGet(st store.Store, args []string) resp.Value {
 	if len(args) != 2 {
 		return resp.ErrorString(errWrongArgs("get"))
 	}
-	v, ok := st.Get(args[1])
+	v, ok, err := st.Get(args[1])
+	if err != nil {
+		return resp.ErrorString(err.Error())
+	}
 	if !ok {
 		return resp.NullBulk()
 	}
@@ -148,6 +152,9 @@ func handleDecrBy(st store.Store, args []string) resp.Value {
 func doIncrBy(st store.Store, key string, delta int64) resp.Value {
 	n, err := st.IncrBy(key, delta)
 	if err != nil {
+		if errors.Is(err, store.ErrWrongType) {
+			return resp.ErrorString(err.Error())
+		}
 		return resp.ErrorString(msgNotInteger)
 	}
 	return resp.Integer(n)
@@ -157,7 +164,10 @@ func handleAppend(st store.Store, args []string) resp.Value {
 	if len(args) != 3 {
 		return resp.ErrorString(errWrongArgs("append"))
 	}
-	cur, _ := st.Get(args[1])
+	cur, _, err := st.Get(args[1])
+	if err != nil {
+		return resp.ErrorString(err.Error())
+	}
 	val := cur + args[2]
 	st.Set(args[1], val)
 	return resp.Integer(int64(len(val)))
@@ -167,7 +177,10 @@ func handleStrLen(st store.Store, args []string) resp.Value {
 	if len(args) != 2 {
 		return resp.ErrorString(errWrongArgs("strlen"))
 	}
-	v, ok := st.Get(args[1])
+	v, ok, err := st.Get(args[1])
+	if err != nil {
+		return resp.ErrorString(err.Error())
+	}
 	if !ok {
 		return resp.Integer(0)
 	}
@@ -180,7 +193,7 @@ func handleMGet(st store.Store, args []string) resp.Value {
 	}
 	out := make([]resp.Value, 0, len(args)-1)
 	for _, k := range args[1:] {
-		if v, ok := st.Get(k); ok {
+		if v, ok, _ := st.Get(k); ok {
 			out = append(out, resp.BulkString(v))
 		} else {
 			out = append(out, resp.NullBulk())

@@ -28,7 +28,7 @@ func handleDump(st store.Store, args []string) resp.Value {
 	if len(args) != 2 {
 		return resp.ErrorString(errWrongArgs("dump"))
 	}
-	v, ok := st.Get(args[1])
+	v, ok, _ := st.Get(args[1])
 	if !ok {
 		return resp.NullBulk()
 	}

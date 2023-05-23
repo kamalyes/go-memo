@@ -16,8 +16,8 @@ type Store interface {
 	// Type 返回键的当前类型，键不存在或已过期返回 TypeNone
 	Type(key string) ValueType
 
-	// Get 返回键对应值，键不存在或已过期或非字符串时第二个返回值为 false
-	Get(key string) (string, bool)
+	// Get 返回字符串键对应值，键不存在返回空与 false，类型不符返回 ErrWrongType
+	Get(key string) (string, bool, error)
 
 	// Set 写入字符串键值，不带过期时间
 	Set(key string, value string)

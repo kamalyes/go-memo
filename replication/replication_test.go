@@ -110,7 +110,7 @@ func waitGet(t *testing.T, st store.Store, key string) string {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if v, ok := st.Get(key); ok {
+		if v, ok, _ := st.Get(key); ok {
 			return v
 		}
 		time.Sleep(2 * time.Millisecond)

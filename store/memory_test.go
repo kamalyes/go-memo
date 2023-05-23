@@ -19,7 +19,7 @@ import (
 func TestSetGet(t *testing.T) {
 	m := New()
 	m.Set("foo", "bar")
-	v, ok := m.Get("foo")
+	v, ok, _ := m.Get("foo")
 	if !ok || v != "bar" {
 		t.Fatalf("Get = %q, %v; want bar, true", v, ok)
 	}
@@ -27,7 +27,7 @@ func TestSetGet(t *testing.T) {
 
 func TestGetMissing(t *testing.T) {
 	m := New()
-	if _, ok := m.Get("missing"); ok {
+	if _, ok, _ := m.Get("missing"); ok {
 		t.Fatal("expected missing key to return false")
 	}
 }
@@ -66,10 +66,10 @@ func TestDel(t *testing.T) {
 	if n := m.Del("a", "b", "missing"); n != 2 {
 		t.Fatalf("Del count = %d, want 2", n)
 	}
-	if _, ok := m.Get("a"); ok {
+	if _, ok, _ := m.Get("a"); ok {
 		t.Fatal("key a should be deleted")
 	}
-	if _, ok := m.Get("c"); !ok {
+	if _, ok, _ := m.Get("c"); !ok {
 		t.Fatal("key c should remain")
 	}
 }
@@ -95,7 +95,7 @@ func TestExpireImmediatelyExpired(t *testing.T) {
 	if got := m.TTL("k"); got != TTLNotExist {
 		t.Fatalf("TTL = %d, want %d", got, TTLNotExist)
 	}
-	if _, ok := m.Get("k"); ok {
+	if _, ok, _ := m.Get("k"); ok {
 		t.Fatal("expired key should not be readable")
 	}
 }

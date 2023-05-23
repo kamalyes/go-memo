@@ -52,10 +52,10 @@ func TestAOFAppendReplay(t *testing.T) {
 	if err := replayInto(st, path); err != nil {
 		t.Fatalf("Replay: %v", err)
 	}
-	if v, ok := st.Get("foo"); !ok || v != "bar" {
+	if v, ok, _ := st.Get("foo"); !ok || v != "bar" {
 		t.Fatalf("foo = %q, %v", v, ok)
 	}
-	if v, ok := st.Get("num"); !ok || v != "105" {
+	if v, ok, _ := st.Get("num"); !ok || v != "105" {
 		t.Fatalf("num = %q, %v", v, ok)
 	}
 	if ttl := st.TTL("foo"); ttl <= 0 {
@@ -93,13 +93,13 @@ func TestRDBSaveLoad(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if v, ok := dst.Get("foo"); !ok || v != "bar" {
+	if v, ok, _ := dst.Get("foo"); !ok || v != "bar" {
 		t.Fatalf("foo = %q, %v", v, ok)
 	}
-	if v, ok := dst.Get("cnt"); !ok || v != "3" {
+	if v, ok, _ := dst.Get("cnt"); !ok || v != "3" {
 		t.Fatalf("cnt = %q, %v", v, ok)
 	}
-	if _, ok := dst.Get("gone"); ok {
+	if _, ok, _ := dst.Get("gone"); ok {
 		t.Fatal("expired key should not be restored")
 	}
 	if ttl := dst.TTL("foo"); ttl <= 0 {

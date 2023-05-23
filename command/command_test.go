@@ -248,6 +248,24 @@ func TestAppendStrLen(t *testing.T) {
 	}
 }
 
+func TestStringWrongType(t *testing.T) {
+	e := newEnv()
+	e.cmd("RPUSH", "list", "a", "b")
+	want := store.ErrWrongType.Error()
+	if v := e.cmd("GET", "list"); v.Type != resp.TypeError || v.Str != want {
+		t.Fatalf("GET wrong type = %+v, want %q", v, want)
+	}
+	if v := e.cmd("APPEND", "list", "x"); v.Type != resp.TypeError || v.Str != want {
+		t.Fatalf("APPEND wrong type = %+v, want %q", v, want)
+	}
+	if v := e.cmd("STRLEN", "list"); v.Type != resp.TypeError || v.Str != want {
+		t.Fatalf("STRLEN wrong type = %+v, want %q", v, want)
+	}
+	if v := e.cmd("INCR", "list"); v.Type != resp.TypeError || v.Str != want {
+		t.Fatalf("INCR wrong type = %+v, want %q", v, want)
+	}
+}
+
 func TestMGetMSet(t *testing.T) {
 	e := newEnv()
 	if v := e.cmd("MSET", "a", "1", "b", "2"); v.Str != "OK" {
